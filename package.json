@@ -1,0 +1,23 @@
+{
+  "name": "e-page-server",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/nymulislam/e-page-server#readme",
+  "bugs": {
+    "url": "https://github.com/nymulislam/e-page-server/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nymulislam/e-page-server.git"
+  },
+  "license": "ISC",
+  "author": "NYM",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
