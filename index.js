@@ -19,7 +19,7 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         console.log("Connected to MongoDB!");
 
         const database = client.db("e-page_db");
