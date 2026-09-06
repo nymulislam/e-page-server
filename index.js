@@ -110,17 +110,23 @@ async function run() {
             res.send({ isBookmarked: !!result });
         });
 
-        // ৪. DELETE: from details page
+        // ১. DELETE: by _id 
+        app.delete('/wishlist/item/:id', async (req, res) => {
+            const id = req.params.id;
+           try {
+        // ObjectId-তে কনভার্ট করবেন না – সরাসরি স্ট্রিং ম্যাচ
+        const result = await wishlistCollection.deleteOne({ _id: id });
+        res.send(result);
+    } catch (error) {
+        console.error("Delete error:", error);
+        res.status(500).send({ error: "Delete failed" });
+    }
+        });
+
+        // ২. DELETE: from details page
         app.delete('/wishlist/:email/:ebookId', async (req, res) => {
             const { email, ebookId } = req.params;
             const result = await wishlistCollection.deleteOne({ userEmail: email, ebookId: ebookId });
-            res.send(result);
-        });
-
-        // ৫. DELETE: by  _id
-        app.delete('/wishlist/item/:id', async (req, res) => {
-            const id = req.params.id;
-            const result = await wishlistCollection.deleteOne({ _id: new ObjectId(id) });
             res.send(result);
         });
 
