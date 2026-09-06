@@ -24,10 +24,11 @@ async function run() {
 
         const database = client.db("e-page_db");
         const ebooksCollection = database.collection("ebooks");
+        const wishlistCollection = database.collection("wishlist");
 
         // 1. GET: (Public)
         app.get('/ebooks', async (req, res) => {
-            const cursor = ebooksCollection.find(); 
+            const cursor = ebooksCollection.find();
             const result = await cursor.toArray();
             res.send(result);
         });
@@ -43,7 +44,7 @@ async function run() {
         // 3. GET: (Edit or Details)
         app.get('/ebooks/:id', async (req, res) => {
             const id = req.params.id;
-            const query = { _id: new ObjectId(id) }; 
+            const query = { _id: new ObjectId(id) };
             const result = await ebooksCollection.findOne(query);
             if (result) res.send(result);
             else res.status(404).send({ message: "Ebook not found!" });
@@ -75,6 +76,51 @@ async function run() {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
             const result = await ebooksCollection.deleteOne(filter);
+            res.send(result);
+        });
+
+
+
+        // ১. POST: add new book in wishlist
+        app.post('/wishlist', async (req, res) => {
+            const item = req.body;
+            // check existing wishlist book
+            const existingItem = await wishlistCollection.findOne({
+                userEmail: item.userEmail,
+                ebookId: item.ebookId
+            });
+            if (existingItem) {
+                return res.send({ message: "Already in wishlist", insertedId: null });
+            }
+            const result = await wishlistCollection.insertOne(item);
+            res.send(result);
+        });
+
+        // ২. GET: fetch
+        app.get('/wishlist/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await wishlistCollection.find({ userEmail: email }).toArray();
+            res.send(result);
+        });
+
+        // ৩. GET: status check in details page
+        app.get('/wishlist/check/:email/:ebookId', async (req, res) => {
+            const { email, ebookId } = req.params;
+            const result = await wishlistCollection.findOne({ userEmail: email, ebookId: ebookId });
+            res.send({ isBookmarked: !!result });
+        });
+
+        // ৪. DELETE: from details page
+        app.delete('/wishlist/:email/:ebookId', async (req, res) => {
+            const { email, ebookId } = req.params;
+            const result = await wishlistCollection.deleteOne({ userEmail: email, ebookId: ebookId });
+            res.send(result);
+        });
+
+        // ৫. DELETE: by  _id
+        app.delete('/wishlist/item/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await wishlistCollection.deleteOne({ _id: new ObjectId(id) });
             res.send(result);
         });
 
