@@ -42,7 +42,7 @@ async function run() {
                     return res.status(404).json({ error: 'Ebook not found' });
                 }
 
-                // ইতিমধ্যে কেনা হয়েছে কিনা চেক করুন
+                // check book already purchased?
                 const existingPurchase = await purchasesCollection.findOne({
                     userEmail: userEmail,
                     ebookId: ebookId
@@ -55,6 +55,7 @@ async function run() {
 
                 const session = await stripe.checkout.sessions.create({
                     payment_method_types: ['card'],
+                    customer_email: userEmail,
                     line_items: [
                         {
                             price_data: {
@@ -70,7 +71,6 @@ async function run() {
                         },
                     ],
                     mode: 'payment',
-                    // success_url-এ session_id
                     success_url: `${clientUrl}/checkout/purchase-success?session_id={CHECKOUT_SESSION_ID}&ebook_id=${ebookId}`,
                     cancel_url: `${clientUrl}/ebooks/${ebookId}`,
                     client_reference_id: ebookId,
@@ -89,7 +89,7 @@ async function run() {
         });
 
         // ============================================
-        //  VERIFY PAYMENT (Success Page থেকে কল হবে)
+        //  VERIFY PAYMENT (Success Page )
         // ============================================
         app.get('/api/verify-payment', async (req, res) => {
             try {
@@ -99,15 +99,23 @@ async function run() {
                     return res.status(400).json({ error: 'Missing parameters' });
                 }
 
-                // Stripe থেকে সেশন ডিটেইলস নিন
+                // Stripe session detail
                 const session = await stripe.checkout.sessions.retrieve(session_id);
 
                 if (session.payment_status === 'paid') {
-                    // পেমেন্ট সফল – purchase রেকর্ড সেভ করুন
+
+                    const ebook = await ebooksCollection.findOne({
+                        _id: new ObjectId(ebook_id)
+
+                    })
+
+                    // payment success – purchase record save
                     const purchaseRecord = {
                         userEmail: user_email,
                         ebookId: ebook_id,
-                        ebookTitle: session.metadata?.ebookTitle || 'Unknown',
+                        ebookTitle: ebook?.title || session.metadata?.ebookTitle || 'Unknown',
+                        ebookCover: ebook?.cover || '',
+                        ebookDescription: ebook?.description || '',
                         amount: session.amount_total / 100,
                         currency: session.currency,
                         stripeSessionId: session_id,
@@ -117,7 +125,6 @@ async function run() {
 
                     await purchasesCollection.insertOne(purchaseRecord);
 
-                    // ইবুকের সেলস কাউন্ট বাড়ান
                     await ebooksCollection.updateOne(
                         { _id: new ObjectId(ebook_id) },
                         { $inc: { salesCount: 1 } }
@@ -134,6 +141,7 @@ async function run() {
         });
 
         // ============================================
+
         //  GET: purchase check
         // ============================================
         app.get('/api/purchases/check/:email/:ebookId', async (req, res) => {
