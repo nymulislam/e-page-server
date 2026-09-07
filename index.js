@@ -30,7 +30,7 @@ async function run() {
         const wishlistCollection = database.collection("wishlist");
         const purchasesCollection = database.collection("purchases");
 
-
+        // ============================================
         //  CREATE CHECKOUT SESSION
         // ============================================
         app.post('/api/create-checkout-session', async (req, res) => {
@@ -157,7 +157,7 @@ async function run() {
 
         // 1. GET: (Public)
         app.get('/ebooks', async (req, res) => {
-            const cursor = ebooksCollection.find();
+            const cursor = ebooksCollection.find({ isSold: false });
             const result = await cursor.toArray();
             res.send(result);
         });
@@ -170,13 +170,23 @@ async function run() {
             res.send(result);
         });
 
-        // 3. GET: (Edit or Details)
+        // GET: Single Ebook Details
         app.get('/ebooks/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await ebooksCollection.findOne(query);
-            if (result) res.send(result);
-            else res.status(404).send({ message: "Ebook not found!" });
+            try {
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const result = await ebooksCollection.findOne(query);
+
+                if (!result) {
+                    return res.status(404).send({ message: "Ebook not found!" });
+                }
+                
+                res.send(result);
+
+            } catch (error) {
+                console.error("Error fetching ebook details:", error);
+                res.status(500).send({ message: "Failed to fetch ebook details" });
+            }
         });
 
         // 4. POST: new e-book
@@ -257,6 +267,23 @@ async function run() {
             const { email, ebookId } = req.params;
             const result = await wishlistCollection.deleteOne({ userEmail: email, ebookId: ebookId });
             res.send(result);
+        });
+
+
+        //  GET: user's all purchases (Purchase History)
+        // ============================================
+        app.get('/api/purchases/:email', async (req, res) => {
+            try {
+                const email = req.params.email;
+                const result = await purchasesCollection
+                    .find({ userEmail: email })
+                    .sort({ purchaseDate: -1 })
+                    .toArray();
+                res.send(result);
+            } catch (error) {
+                console.error("Failed to fetch purchases:", error);
+                res.status(500).send({ error: "Failed to fetch purchase history" });
+            }
         });
 
         app.get('/', (req, res) => {
