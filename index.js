@@ -33,7 +33,7 @@ async function run() {
             try {
                 const { ebookId, userEmail } = req.body;
                 const ebook = await ebooksCollection.findOne({ _id: new ObjectId(ebookId) });
-                
+
                 if (!ebook) {
                     return res.status(404).json({ error: 'Ebook not found' });
                 }
@@ -147,6 +147,34 @@ async function run() {
         });
 
 
+        // --- Admin Transactions Route ---
+        app.get('/api/admin/transactions', async (req, res) => {
+            try {
+                const purchases = await purchasesCollection
+                    .find({})
+                    .sort({ purchaseDate: -1 })
+                    .toArray();
+
+                // Transaction Data Format
+                const transactions = purchases.map((p) => ({
+                    id: p.stripeSessionId ? `TRX-${p.stripeSessionId.slice(-8).toUpperCase()}` : `TRX-${p._id.toString().slice(-8).toUpperCase()}`,
+                    type: 'purchase',
+                    email: p.userEmail || 'N/A',
+                    amount: `+ $${Number(p.amount || 0).toFixed(2)}`,
+                    date: p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    }) : 'N/A'
+                }));
+
+                res.send(transactions);
+            } catch (error) {
+                console.error("Error fetching transactions:", error);
+                res.status(500).send({ message: "Failed to fetch transactions" });
+            }
+        });
+
         // --- Ebooks Routes ---
         app.get('/ebooks/admin', async (req, res) => {
             try {
@@ -197,7 +225,7 @@ async function run() {
             try {
                 const newEbook = req.body;
                 newEbook.uploadDate = new Date();
-                
+
                 const result = await ebooksCollection.insertOne(newEbook);
                 res.send(result);
             } catch (error) {
@@ -230,6 +258,45 @@ async function run() {
             } catch (error) {
                 console.error("Error deleting ebook:", error);
                 res.status(500).send({ message: "Failed to delete ebook" });
+            }
+        });
+
+        // --- Writer Sales History Route ---
+        app.get('/api/sales/writer/:email', async (req, res) => {
+            try {
+                const writerEmail = req.params.email;
+                console.log("Writer email:", writerEmail);
+
+                const writerEbooks = await ebooksCollection.find({ writerEmail }).toArray();
+                console.log("Writer ebooks found:", writerEbooks.length);
+
+                const ebookIds = writerEbooks.map(ebook => ebook._id.toString());
+                console.log("Ebook IDs:", ebookIds);
+
+                const purchases = await purchasesCollection
+                    .find({
+                        ebookId: { $in: ebookIds },
+                        status: 'completed'
+                    })
+                    .sort({ purchaseDate: -1 })
+                    .toArray();
+                console.log("Purchases found:", purchases.length);
+
+                const salesData = purchases.map(p => ({
+                    title: p.ebookTitle || 'Unknown Ebook',
+                    buyer: p.userEmail || 'N/A',
+                    date: p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    }) : 'N/A',
+                    amount: `$${Number(p.amount || 0).toFixed(2)}`
+                }));
+
+                res.send(salesData);
+            } catch (error) {
+                console.error("Error fetching writer sales:", error);
+                res.status(500).send({ error: "Failed to fetch sales history" });
             }
         });
 
