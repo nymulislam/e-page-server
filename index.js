@@ -24,6 +24,7 @@ async function run() {
         console.log("Connected to MongoDB!");
 
         const database = client.db("e-page_db");
+        const usersCollection = database.collection("user");
         const ebooksCollection = database.collection("ebooks");
         const wishlistCollection = database.collection("wishlist");
         const purchasesCollection = database.collection("purchases");
@@ -261,17 +262,68 @@ async function run() {
             }
         });
 
+
+        // --- Admin Dashboard Stats Route ---
+        app.get('/api/admin/dashboard-stats', async (req, res) => {
+            try {
+                const allPurchases = await purchasesCollection.find({ status: 'completed' }).toArray();
+                const allEbooks = await ebooksCollection.find({}).toArray();
+
+                const totalUsers = await usersCollection.estimatedDocumentCount();
+
+                const uniqueWriters = new Set(allEbooks.map(e => e.writerEmail).filter(Boolean));
+                const totalWriters = uniqueWriters.size;
+
+                const totalRevenue = allPurchases.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const ebooksSold = allPurchases.length;
+
+                const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const salesByMonth = {};
+
+                allPurchases.forEach(p => {
+                    if (p.purchaseDate) {
+                        const date = new Date(p.purchaseDate);
+                        const month = monthNames[date.getMonth()];
+                        salesByMonth[month] = (salesByMonth[month] || 0) + (Number(p.amount) || 0);
+                    }
+                });
+
+                const salesData = monthNames.map(month => ({
+                    name: month,
+                    total: Number((salesByMonth[month] || 0).toFixed(2))
+                }))
+
+                const genreCounts = {};
+                allEbooks.forEach(e => {
+                    const genre = e.category || e.genre || 'Others';
+                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+                });
+
+                const genreData = Object.keys(genreCounts).map(genre => ({
+                    name: genre,
+                    value: genreCounts[genre]
+                }));
+
+                res.send({
+                    stats: { totalUsers, totalWriters, ebooksSold, totalRevenue },
+                    salesData: salesData.length ? salesData : [{ name: 'No Data', total: 0 }],
+                    genreData: genreData.length ? genreData : [{ name: 'No Data', value: 1 }]
+                });
+
+            } catch (error) {
+                console.error("Error fetching dashboard stats:", error);
+                res.status(500).send({ message: "Failed to fetch dashboard stats" });
+            }
+        });
+
         // --- Writer Sales History Route ---
         app.get('/api/sales/writer/:email', async (req, res) => {
             try {
                 const writerEmail = req.params.email;
-                console.log("Writer email:", writerEmail);
 
                 const writerEbooks = await ebooksCollection.find({ writerEmail }).toArray();
-                console.log("Writer ebooks found:", writerEbooks.length);
 
                 const ebookIds = writerEbooks.map(ebook => ebook._id.toString());
-                console.log("Ebook IDs:", ebookIds);
 
                 const purchases = await purchasesCollection
                     .find({
